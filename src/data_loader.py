@@ -18,8 +18,8 @@ class ProcessedCardioDataset(Dataset):
         ecg_path = os.path.join(self.data_dir, row['ECG_File'])
         pcg_path = os.path.join(self.data_dir, row['PCG_File'])
         
-        ecg_tensor = torch.load(ecg_path)
-        pcg_tensor = torch.load(pcg_path)
+        ecg_tensor = torch.load(ecg_path, weights_only=True)
+        pcg_tensor = torch.load(pcg_path, weights_only=True)
         
         # add channel dimension: (L) -> (1, L)
         # for PyTorch 1D Convolutional layers
