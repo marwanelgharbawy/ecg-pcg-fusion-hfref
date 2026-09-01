@@ -7,12 +7,13 @@ class ECG_Encoder(nn.Module):
         self.conv1 = nn.Conv1d(1, 16, kernel_size=15, stride=2, padding=7)
         self.relu = nn.ReLU()
         self.pool = nn.MaxPool1d(2)
-        
         self.adaptive_pool = nn.AdaptiveAvgPool1d(100) 
         self.fc = nn.Linear(16 * 100, 128)
+        self.classifier = nn.Linear(128, 1)
 
     def forward(self, x):
         x = self.pool(self.relu(self.conv1(x)))
         x = self.adaptive_pool(x)
         x = x.view(x.size(0), -1)
-        return self.fc(x)
+        x = self.fc(x)
+        return self.classifier(x)
