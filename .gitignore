@@ -1,2 +1,13 @@
-data/
+/data/
+
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+.ipynb_checkpoints/
+
+/models/**/*.history.csv
+/models/**/*.test_predictions.csv
+/tests
