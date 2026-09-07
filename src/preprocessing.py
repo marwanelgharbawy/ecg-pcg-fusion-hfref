@@ -14,7 +14,7 @@ ECG_FS = 500
 PCG_FS = 4000
 DURATION_SECONDS = 30
 ECG_SAMPLES = ECG_FS * DURATION_SECONDS
-PCG_SAMPLES = PCG_FS * DURATION_SECONDS
+PCG_SAMPLES = PCG_FS * DURATION_SECONDS # 120000 samples per recording
 
 
 def butter_bandpass_filter(data, lowcut, highcut, fs, order=4):
@@ -36,7 +36,7 @@ def _standardize(data):
 def preprocess_ecg(ecg_raw):
     return _standardize(butter_bandpass_filter(ecg_raw, 0.5, 40.0, ECG_FS))
 
-
+# 25-400 HZ range as < 25 Hz is mostly noise and > 400 Hz is mostly noise and harmonics of the heart sounds
 def preprocess_pcg(pcg_raw):
     return _standardize(butter_bandpass_filter(pcg_raw, 25.0, 400.0, PCG_FS))
 
@@ -170,7 +170,7 @@ def load_patient_signals(patient):
             if not np.isfinite(data).all():
                 raise ValueError(f"Nonfinite samples in {path}.")
             channels.append(data)
-        signals[modality] = np.stack(channels)
+        signals[modality] = np.stack(channels) # shape (4, time)
     return signals["ECG"], signals["PCG"]
 
 
