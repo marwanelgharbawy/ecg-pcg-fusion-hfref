@@ -90,10 +90,10 @@ The community test set contains 120 patients: 5 HFrEF and 115 non-HFrEF.
 
 | Model | Recall | Specificity | Precision | F1 | Balanced accuracy | Average precision | AUROC | False warnings |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Notebook 2 four-channel | 1.000 | 0.965 | 0.556 | 0.714 | 0.983 | 0.967 | 0.998 | 4 |
+| Notebook 2.1 four-channel | 1.000 | 0.965 | 0.556 | 0.714 | 0.983 | 0.967 | 0.998 | 4 |
 | Best separate-site | 1.000 | 0.878 | 0.263 | 0.417 | 0.939 | 0.900 | 0.991 | 14 |
 
-Both models found all five HFrEF patients. The separate-site model created ten more false warnings and did not improve average precision or AUROC. On this test set, the notebook 2 four-channel model is the better model to keep.
+Both models found all five HFrEF patients. The separate-site model created ten more false warnings and did not improve average precision or AUROC. On this test set, the notebook 2.1 four-channel model is the better model to keep.
 
 Only five test patients have HFrEF, so one patient would change recall by 20 percentage points. This test result should be reported as the final held-out check and should not be used to tune another version of the model.
 
