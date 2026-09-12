@@ -63,3 +63,38 @@ class ECG_Encoder(nn.Module):
 
     def forward(self, x):
         return self.classifier(self.forward_features(x))
+
+
+class SharedSiteECGEncoder(nn.Module):
+    """Process each recording site separately, then combine one patient summary.
+
+    The same encoder weights are used for APEX, LLSB, LUSB, and RUSB. The four
+    site summaries are concatenated in that fixed order before classification.
+    Sites are never treated as separate patients.
+    """
+
+    def __init__(self, num_sites=4, feature_dim=128, dropout=0.3):
+        super().__init__()
+        if num_sites < 1:
+            raise ValueError("num_sites must be positive.")
+        self.num_sites = num_sites
+        self.feature_dim = feature_dim
+        self.site_encoder = ECG_Encoder(
+            in_channels=1, feature_dim=feature_dim, dropout=dropout
+        )
+        # The inner classifier is unused; every site contributes its embedding.
+        self.site_encoder.classifier = nn.Identity()
+        self.classifier = nn.Linear(num_sites * feature_dim, 1)
+
+    def forward_features(self, x):
+        if x.ndim != 3 or x.size(1) != self.num_sites:
+            raise ValueError(
+                f"Expected (batch, {self.num_sites}, time), got {tuple(x.shape)}."
+            )
+        batch, sites, samples = x.shape
+        site_inputs = x.reshape(batch * sites, 1, samples)
+        site_features = self.site_encoder.forward_features(site_inputs)
+        return site_features.reshape(batch, sites * self.feature_dim)
+
+    def forward(self, x):
+        return self.classifier(self.forward_features(x))

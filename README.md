@@ -19,7 +19,7 @@ We use a public HFrEF ECG + PCG dataset available on [Zenodo](https://zenodo.org
 ## Main Experiments
 We will evaluate and compare the models across several configurations:
 * **Models compared:** ECG-only, PCG-only, simple fusion, and attention fusion.
-* **Evaluation metrics:** AUROC, AUPRC, F1-score, sensitivity, specificity, balanced accuracy, and training time.
+* **Evaluation metrics:** AUROC, AUPRC, F1-score, recall, specificity, balanced accuracy, and training time.
 * **Ablation study:** We will conduct an ablation study to determine whether the inclusion of the second modality actually provides additional actionable information over a single-modality approach.
 
 ## ECG Model
