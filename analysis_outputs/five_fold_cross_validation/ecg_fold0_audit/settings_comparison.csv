@@ -1,0 +1,13 @@
+setting,old,new,equal
+model_config,"{'in_channels': 4, 'feature_dim': 128, 'dropout': 0.3}","{'in_channels': 4, 'feature_dim': 128, 'dropout': 0.3}",True
+batch_size,16,16,True
+learning_rate,0.001,0.001,True
+weight_decay,0.0001,0.0001,True
+focal_alpha,0.88,0.88,True
+focal_gamma,2.0,2.0,True
+max_epochs,50,50,True
+patience,10,10,True
+validation_fold,0,0,True
+seed,42,42,True
+training_patient_order,400 patients,400 patients,True
+validation_patient_order,100 patients,100 patients,True

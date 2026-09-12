@@ -1,0 +1,3 @@
+model,patients,auroc,auprc,best_epoch,epochs_run,max_abs_difference_from_saved_predictions
+original,100,0.956439393939394,0.7686080022854072,23,33,
+new_fold0,100,0.9109848484848485,0.4739108692233693,13,23,9.71445146547012e-17
