@@ -52,7 +52,7 @@ On the same first training batch and the same model outputs:
 - 449,865 of 522,433 gradient values differed numerically. The differences were tiny; this count does not measure how serious they are.
 - No optimizer step was taken. No saved model was modified.
 
-A gradient is the number used to decide how to change a weight. Small differences in these numbers can accumulate during training, producing different later scores and stopping points. This makes the loss implementation a concrete suspect. **This audit does not prove that it caused the full AUPRC drop.** A controlled training comparison is needed to test that explanation.
+A gradient is the number used to decide how to change a weight. Small differences in these numbers can accumulate during training, producing different later scores and stopping points. This audit identified the loss calculation as a suspect. The later controlled comparison confirmed that it explains the two fold-0 training results in this setup.
 
 The earlier statement that both runs had the same training recipe was incomplete: their intended loss and settings match, but the exact loss calculation differs.
 
@@ -73,7 +73,7 @@ The replayed new predictions match their saved values to within `9.8e-17` (CSV r
 
 Keep the original checkpoint and all five new checkpoints. The five-fold method itself did not cause the individual fold-0 drop. The shared focal-loss calculation caused the training path to differ on this setup.
 
-Because the intended experiment was to change only fold use, use the original notebooks' exact focal-loss calculation for the corrected ECG and PCG five-fold runs. Preserve the shared-loss ECG run as an experiment record. This one fold and seed does not prove that either mathematically equivalent calculation is generally better.
+The project decision is to retain the original ECG and PCG baselines and preserve the five-fold runs as experiment records. If the comparison is revisited, match the original loss calculation and control the PCG crop sequence using development data. No further training is required for the current decision. This one fold and seed does not prove that either mathematically equivalent calculation is generally better.
 
 The production loss implementation was not changed, and the controlled comparison did not use community-test data.
 

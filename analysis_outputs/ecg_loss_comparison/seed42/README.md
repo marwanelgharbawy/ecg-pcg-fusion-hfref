@@ -35,11 +35,11 @@ This confirms that the focal-loss calculation caused the two training paths to s
 
 ## Decision
 
-The intended five-fold experiment was supposed to change the fold use while keeping the old training method. For that comparison, the new ECG and PCG five-fold runs should use the exact focal-loss calculation from their original notebooks.
+Keep the original ECG and PCG models as the project baselines. Preserve the five-fold runs and this loss comparison as experiment records. The PCG five-fold notebook has since been run with the shared loss; its results and limitations are recorded in notebook 3.2. The original PCG checkpoint is missing locally and must be recovered before using that model locally or for fusion.
 
-Keep the current ECG five-fold results as a record of the shared-loss run, but do not treat them as the final direct comparison with notebook 2.1. Do not run the current PCG five-fold notebook until its experiment uses the original PCG loss calculation. The production `FocalLoss` in `src/train.py` was not changed by this experiment.
+The intended five-fold experiment was supposed to change fold use while keeping the old training method. These runs did not exactly preserve it. If the comparison is revisited, match each original notebook's exact loss calculation and, for PCG, control the random training-crop sequence. This is an optional development-only follow-up, not a required rerun. The ECG loss finding does not establish the cause of the PCG result.
 
-Only after the five-fold experiment is corrected should all five ECG folds be rerun. No community-test evaluation is needed while diagnosing the development results; a later final evaluation should follow the agreed project workflow.
+The production `FocalLoss` in `src/train.py` was not changed. This controlled comparison did not use community-test data.
 
 ## Saved files
 
@@ -50,4 +50,4 @@ Only after the five-fold experiment is corrected should all five ECG folds be re
 - `models/ecg_loss_comparison/seed42/shared_src_loss/`: shared-loss model, history, settings, and validation predictions.
 - `notebooks/2_4_ecg_loss_comparison.ipynb`: executed notebook with tables and training curves.
 
-Existing checkpoints and five-fold results were preserved. Nothing was committed or pushed.
+Existing checkpoints and five-fold results were preserved.
