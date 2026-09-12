@@ -10,4 +10,5 @@ venv/
 
 /models/**/*.history.csv
 /models/**/*.test_predictions.csv
+/models/ecg_experiments/
 /tests
