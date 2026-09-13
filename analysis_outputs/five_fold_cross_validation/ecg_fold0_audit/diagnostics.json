@@ -1,0 +1,50 @@
+{
+  "startup_checks": {
+    "initial_model_state_equal": true,
+    "cpu_random_state_equal": true,
+    "gpu_random_state_equal": true,
+    "shuffle_generator_state_equal": true,
+    "first_batch_signals_equal": true,
+    "first_batch_labels_equal": true,
+    "training_patient_order_equal": true,
+    "validation_patient_order_equal": true,
+    "shape_check_preserves_state_and_rng": true
+  },
+  "loss_check": {
+    "legacy_loss": 0.12097357213497162,
+    "shared_loss": 0.12097357213497162,
+    "absolute_loss_difference": 0.0,
+    "maximum_parameter_gradient_difference": 2.9802322387695312e-08,
+    "gradient_elements_different": 449865,
+    "gradient_elements_total": 522433,
+    "optimizer_steps": 0
+  },
+  "checkpoint_hashes_before": {
+    "models\\best_ecg_4ch_fold0.pt": "0c614d6bfdb1e92f217e97f1c0cf3fe2add6a0fea9ecf95b78776efb28e164ee",
+    "models\\five_fold_cross_validation\\ecg_seed42\\fold_0\\best_model.pt": "344e4770575b1435b0cfcfec8dd4bac34df912988a70aefc69c2a08c2fad4a50"
+  },
+  "checkpoint_hashes_after": {
+    "models\\best_ecg_4ch_fold0.pt": "0c614d6bfdb1e92f217e97f1c0cf3fe2add6a0fea9ecf95b78776efb28e164ee",
+    "models\\five_fold_cross_validation\\ecg_seed42\\fold_0\\best_model.pt": "344e4770575b1435b0cfcfec8dd4bac34df912988a70aefc69c2a08c2fad4a50"
+  },
+  "source_and_metadata_hashes": {
+    "notebooks\\2_1_ecg_baseline.ipynb": "f7ee9cf99d48cbca636aa497b286f2eaa9ea5508006f6424f331f71f5f0fc0c8",
+    "src\\five_fold_validation.py": "4b26a6a8a235b76cfd734b7b9211c91e451379948aa5b4b2c18c42b3298501d9",
+    "src\\train.py": "812a30c93b0b6daac5b3a08a44e6a2c981b227848ec2f55115bd579b6686b6bb",
+    "src\\ecg_model.py": "a1d8c817338f8c762d03d12fcfd283a40f8eb3d35eb10d59d94d1908900e396a",
+    "src\\data_loader.py": "6216182775cb1baad0bb917b29973307fa3bfe9c805aae0eecac4bfb90b1db2a",
+    "data\\processed\\patient_4ch\\development\\processed_metadata.csv": "a456aa992f256bd9863daf0c8298ff1ff034e1d23d8082c0e1e1360702f9a082"
+  },
+  "environment": {
+    "python": "3.11.9 (tags/v3.11.9:de54cf5, Apr  2 2024, 10:12:12) [MSC v.1938 64 bit (AMD64)]",
+    "platform": "Windows-10-10.0.26200-SP0",
+    "torch": "2.5.1+cu121",
+    "cuda": "12.1",
+    "cudnn": 90100,
+    "device": "NVIDIA GeForce RTX 2060 with Max-Q Design"
+  },
+  "historical_environment_recorded": false,
+  "historical_input_tensor_hashes_available": false,
+  "community_test_loaded": false,
+  "models_trained": false
+}

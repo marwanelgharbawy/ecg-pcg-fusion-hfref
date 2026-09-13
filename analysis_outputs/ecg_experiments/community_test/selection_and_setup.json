@@ -1,0 +1,16 @@
+{
+  "test_patients": 120,
+  "test_hfref_patients": 5,
+  "test_non_hfref_patients": 115,
+  "selected_model": "Best separate-site",
+  "selection_rule": "Highest average precision on its held-out development scoring fold",
+  "selected_seed": 42,
+  "selected_scoring_fold": 1,
+  "selected_tuning_fold": 2,
+  "selected_development_auprc": 0.7592739637576594,
+  "selected_development_auroc": 0.9204545454545454,
+  "baseline_validation_fold": 0,
+  "baseline_90pct_tuning_specificity": 0.9090909090909091,
+  "shared_90pct_tuning_specificity": 0.9090909090909091,
+  "device": "cuda"
+}

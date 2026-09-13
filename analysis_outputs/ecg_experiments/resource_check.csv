@@ -1,0 +1,3 @@
+architecture,batch_size,input_shape,parameter_count,peak_allocated_gpu_mib,check
+joint_4ch,16,"(16, 4, 15000)",522433,248.673828125,one forward and backward pass
+shared_site,16,"(16, 4, 15000)",521377,889.84716796875,one forward and backward pass

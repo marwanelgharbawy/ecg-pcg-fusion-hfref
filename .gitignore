@@ -10,4 +10,7 @@ venv/
 
 /models/**/*.history.csv
 /models/**/*.test_predictions.csv
+/models/ecg_experiments/
+/models/five_fold_cross_validation/
+/models/ecg_loss_comparison/
 /tests

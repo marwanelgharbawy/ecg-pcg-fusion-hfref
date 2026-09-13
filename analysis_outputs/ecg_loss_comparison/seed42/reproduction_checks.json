@@ -1,0 +1,23 @@
+{
+  "controlled_starting_setup_equal": true,
+  "development_only": true,
+  "community_test_loaded": false,
+  "original_notebook_loss_vs_saved_original": {
+    "model_state_exactly_equal": true,
+    "common_history_max_absolute_difference": 0.0,
+    "validation_probability_max_absolute_difference": 0.0,
+    "auroc": 0.956439393939394,
+    "auprc": 0.7686080022854072,
+    "best_epoch": 23,
+    "epochs_run": 33
+  },
+  "shared_source_loss_vs_saved_new_fold0": {
+    "model_state_exactly_equal": true,
+    "common_history_max_absolute_difference": 0.0,
+    "validation_probability_max_absolute_difference": 0.0,
+    "auroc": 0.9109848484848485,
+    "auprc": 0.4739108692233693,
+    "best_epoch": 13,
+    "epochs_run": 23
+  }
+}

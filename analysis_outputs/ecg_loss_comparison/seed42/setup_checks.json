@@ -1,0 +1,13 @@
+{
+  "all_equal": true,
+  "checks": {
+    "initial_model_state": true,
+    "initial_cpu_random_state": true,
+    "initial_gpu_random_state": true,
+    "initial_shuffle_state": true,
+    "training_patient_order": true,
+    "validation_patient_order": true
+  },
+  "development_only": true,
+  "community_test_loaded": false
+}
