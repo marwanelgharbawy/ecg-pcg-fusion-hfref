@@ -59,7 +59,7 @@ MODALITY_SETTINGS = {
 }
 
 # The old PCG checkpoint is not in the repository. These values come from the
-# saved output in notebooks/3_pcg_baseline.ipynb and are marked as a reference.
+# saved output in notebooks/3_1_pcg_baseline.ipynb and are marked as a reference.
 OLD_PCG_TEST_REFERENCE = {
     "model": "Original notebook 3.1 single model",
     "cutoff_rule": "original_saved_cutoff",
