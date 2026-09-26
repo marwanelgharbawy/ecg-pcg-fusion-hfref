@@ -1,0 +1,434 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs,tabularx}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\graphicspath{{figures/}}
+
+% Visible drafting prompts: replace every occurrence before submission.
+\newcommand{\draftnote}[1]{\par\smallskip\noindent\textcolor{blue}{\textbf{To write:} #1}\par\smallskip}
+
+\title{CardioFusion: An Experimental Study of ECG--PCG Fusion\\for HFrEF Detection}
+\author{Marwan El-Gharbawy \and Nadine Mohamed \and Shams Quraytum}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% \begin{abstract}
+% abstract was removed as it's not an actual research paper
+% abstract should be written last
+% % ------------- abstract -------------
+% \draftnote{Summarize the problem, dataset, compared models, main numerical
+% finding, and principal limitation in one paragraph. Do not report unverified
+% results or claim clinical readiness.}
+% \end{abstract}
+%
+% ------------- introduction -------------
+\section{Introduction}
+\label{sec:introduction}
+
+This project investigates whether the combination of electrocardiogram (ECG) and
+phonocardiogram (PCG) recordings improves the detection of heart
+failure with reduced ejection fraction (HFrEF). We compare unimodal models
+with multimodal fusion approaches on a public paired-signal dataset.
+
+ECG records the electrical activity of the heart, while PCG records heart
+sounds associated with its mechanical activity. These signals may provide
+complementary information for HFrEF screening, as investigated by
+Ma et al.~\cite{ma2026hierarchical}. In this course project, we study this
+possibility through experiments with individual modalities and their fusion.
+
+% \draftnote{Introduce the clinical motivation with appropriate references.
+% Explain what each modality measures and why complementary information might
+% help classification. State the project's scope as an empirical course study.}
+
+\subsection{Related work and study objective}
+Ma et al.~\cite{ma2026hierarchical} introduced LGC$^{2}$-Net, a model that
+combines ECG and PCG features at several stages and learns relationships
+between the four recording sites. Their full model achieved a reported
+five-fold AUROC of $0.960\pm0.020$, with sensitivity of
+$(90.00\pm6.97)\%$ and specificity of $(92.73\pm2.62)\%$.
+
+Using their public dataset, our study investigates whether combining ECG
+and PCG improves detection compared with either modality alone. We compare
+ECG-only and PCG-only models with concatenation and attention fusion.
+Section~\ref{sec:comparison} presents our results alongside the published
+values and explains the differences in evaluation.
+% ------------- dataset preprocessing -------------
+\section{Dataset and Preprocessing}
+\label{sec:data}
+
+\subsection{Dataset and prediction target}
+The public dataset contains 620 patients and 2,480 paired ECG--PCG
+recordings, with four recording sites per patient~\cite{hfrefdataset}.
+Table~\ref{tab:cohorts} summarizes the development and community test
+cohorts. A patient is labeled positive for HFrEF when left ventricular
+ejection fraction (LVEF) is at or below 40\%. Patients with LVEF above
+40\% form the negative class; this label does not necessarily mean that
+they have no other cardiac condition.
+
+\begin{table}[htbp]
+\centering
+\caption{Patient counts and HFrEF prevalence in the two cohorts.}
+\label{tab:cohorts}
+\begin{tabular}{lrrrr}
+\toprule
+Cohort & Patients & HFrEF & Non-HFrEF & HFrEF (\%) \\
+\midrule
+Development & 500 & 60 & 440 & 12.00 \\
+Community test & 120 & 5 & 115 & 4.17 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The four sites are stored in the order APEX, LLSB, LUSB, and RUSB. ECG and
+PCG are synchronized within each site, but the sites were recorded
+sequentially and are not temporally aligned with one another. Each
+recording lasts 30 seconds. The four sites belong to one patient example
+and are not treated as four independent patients.
+
+\subsection{Signal processing and patient representation}
+ECG is sampled at 500 Hz and band-pass filtered between 0.5 and 40 Hz.
+PCG is sampled at 4,000 Hz and band-pass filtered between 25 and 400 Hz.
+The preprocessing uses Butterworth filters with SciPy's order parameter
+set to 4 and applies them forward and backward to avoid a phase shift.
+Filtering is performed independently for each modality and recording site.
+
+Each filtered recording is then standardized by subtracting its own mean
+and dividing by its own standard deviation, with a minimum denominator of
+$10^{-8}$ to avoid division by zero. This step uses no statistics from
+other patients. The shared preprocessing preserves the full recording;
+it does not crop, segment, pad, or resample the signals.
+
+For each patient, the four sites are stacked into an ECG tensor of shape
+$4\times15{,}000$ and a PCG tensor of shape $4\times120{,}000$, stored as
+32-bit floating-point values. The first dimension represents recording
+sites and the second represents time samples.
+
+\subsection{Data checks and patient separation}
+The preprocessing checks that each patient has all four required sites,
+with no duplicate sites and consistent labels, LVEF values, and fold
+assignments. It also checks that the source files exist and that each
+signal is mono, contains finite values, and has the expected sampling
+rate and number of samples. Patient identifiers must not overlap between
+the development and community test cohorts.
+
+The processed metadata contains 500 development patients and 120 community
+test patients, with no overlapping identifiers. Each of the five development
+folds contains 100 patients, including 12 with HFrEF. All four sites remain
+together when patients are split. Model-specific training crops and
+augmentation are described with the corresponding model, separately from
+this shared preprocessing.
+
+% \draftnote{Verify these details against the final report's chosen code
+% revision. Add a compact cohort table, dataset citation, and a brief account
+% of the checks for missing sites, inconsistent labels, and patient overlap.}
+% SUGGESTION (optional): show a short ECG interval before and after filtering,
+% with labeled time and amplitude axes, to illustrate the preprocessing.
+% ------------- evaluation -------------
+\section{Experimental Setup}
+\label{sec:evaluation}
+
+\subsection{Data partitions and model selection}
+\draftnote{Describe each reported protocol precisely. Distinguish the
+historical fold-0 baselines, the four-training-fold/one-validation-fold
+experiments, and the ECG experiments with separate training, tuning, and
+scoring folds. Explain which patients select epochs and thresholds. Do not
+describe validation predictions used for checkpoint selection as fully
+independent scoring predictions.}
+
+\subsection{Training and reproducibility}
+\draftnote{Provide a settings table with optimizer, learning rate, loss,
+batch size, regularization, stopping rule, and seeds. State model-specific
+differences. Identify the code revision and environment for the reported
+runs; do not assume that all experiments used identical loss operations.}
+
+\subsection{Evaluation measures}
+\draftnote{Define AUROC, sensitivity, specificity, precision, and F1.
+Explain that the reported AUPRC uses average precision. Specify whether
+development metrics are pooled across patients or averaged across folds.
+Describe the development-derived decision thresholds and test ensembling.}
+% ------------- ecg -------------
+% Owner: Author One (ECG). Shared dataset/protocol details live elsewhere.
+\section{ECG Model and Experiments}
+\label{sec:ecg}
+
+\subsection{Baseline architecture}
+The ECG baseline receives all four site recordings as a single patient
+input, $X_{\mathrm{ECG}}\in\mathbb{R}^{4\times15{,}000}$. A one-dimensional
+convolution with 32 output channels, kernel size 15, and stride 2 is followed
+by batch normalization, a rectified linear unit (ReLU), and max pooling.
+Four residual blocks use 32, 64, 128, and 128 output channels. Each block
+contains two convolutions with kernel size 7 and a residual connection;
+the final three blocks downsample using stride 2 in the first convolution.
+Batch normalization follows each convolution within a block, and channel
+dropout with probability 0.1 is applied between the two convolutions.
+
+Global average and maximum pooling produce two 128-dimensional vectors,
+which are concatenated. A fully connected layer maps the resulting
+256-dimensional vector to a 128-dimensional embedding, followed by ReLU
+and dropout with probability 0.3. A final linear layer produces one logit
+per patient. A sigmoid converts the logit to a classification score.
+
+\subsection{Baseline training}
+The historical baseline uses fold 0 for validation (100 patients, including
+12 with HFrEF) and the remaining four folds for training (400 patients,
+including 48 with HFrEF). It is trained on full ECG recordings using seed
+42 and a batch size of 16. AdamW is used with an initial learning rate of
+$10^{-3}$ and weight decay of $10^{-4}$.
+
+The training objective is focal loss with $\alpha=0.88$ and $\gamma=2$.
+In this implementation, positive examples receive a class weight of 0.88
+and negative examples a weight of 0.12. The focal factor reduces the
+contribution of confidently classified examples, giving relatively more
+weight to difficult examples. These settings address the imbalance
+between the two classes during training.
+
+Validation AUROC controls both learning-rate reduction and checkpoint
+selection. The learning rate is halved after a plateau with patience 3,
+and early stopping uses patience 10 within a maximum of 50 epochs. The
+saved checkpoint is the one with the highest validation AUROC, at epoch
+23. Its decision threshold, approximately 0.5117, is selected by maximizing
+validation F1 and then kept fixed for community testing. These settings
+describe the historical baseline; the later five-fold runs are reported
+separately in Section~\ref{sec:comparison}.
+
+% \draftnote{Explain the loss and optimizer using the original ECG notebook.
+% Keep these historical settings distinct from later experiments. Refer to
+% Section~\ref{sec:evaluation} for the partition and threshold rules.}
+
+\subsection{Improvement experiments}
+\draftnote{Summarize the separate-site encoder, fixed/random cropping,
+recording-quality audit, and controlled loss comparison. Use a small table
+with columns for motivation, change, result, and decision. Select the most
+informative findings instead of reproducing every training log.}
+
+\subsection{Results and interpretation}
+\draftnote{Insert verified ECG results with the exact run, split, and metric
+aggregation identified. Explain the difference between the historical
+single model and five-fold models. State what the experiments support and
+what remains uncertain; leave cross-modality conclusions to
+Section~\ref{sec:comparison}.}
+
+% Example after a figure is available under report/figures/:
+% \begin{figure}[htbp]
+%   \centering
+%   \includegraphics[width=0.85\linewidth]{ecg_training.pdf}
+%   \caption{Training history for the specified ECG baseline run.}
+%   \label{fig:ecg-training}
+% \end{figure}
+% ------------- pcg -------------
+% Owner: Author Two (PCG).
+\section{PCG Model and Experiments}
+\label{sec:pcg}
+
+\subsection{Baseline architecture}
+\draftnote{Describe the PCG encoder, its input shape, temporal downsampling,
+residual blocks, embedding, and classifier. Explain how it accommodates
+the higher sampling rate. Refer to Section~\ref{sec:data} for preprocessing.}
+
+\subsection{Training and improvement experiments}
+\draftnote{Describe the baseline training crop and regularization. Present
+the experiment with a smaller model and augmentation separately, identifying all
+changes made together. Avoid attributing an outcome to one augmentation
+when several settings changed in the same run.}
+
+\subsection{Results and interpretation}
+\draftnote{Report verified baseline and selected experiment results. Identify
+whether numbers come from replayed predictions or historical notebook
+outputs. Discuss discrimination, missed positive patients, false positives,
+and the limits of the small positive class.}
+% ------------- fusion -------------
+% Owner: Author Three (fusion).
+\section{Multimodal Fusion}
+\label{sec:fusion}
+
+\subsection{Concatenation fusion}
+\draftnote{Explain how the ECG and PCG embeddings are concatenated and
+classified. Identify the exact pretrained encoder runs and folds, whether
+encoders are frozen, and which parameters are trained. Refer to
+Sections~\ref{sec:ecg} and~\ref{sec:pcg} instead of repeating the encoders.}
+
+\subsection{Attention fusion}
+\draftnote{Describe modality projections, the two modality tokens,
+multi-head attention, residual connections, and classifier. Explain that
+this operates on patient embeddings, rather than making a claim about
+explicit beat-level temporal alignment.}
+
+\subsection{Development selection and community evaluation}
+\draftnote{State the development comparison used to select the fusion
+approach. Describe averaging five fold-model probabilities and applying
+development-selected thresholds to the community cohort. Distinguish the
+selected model's evaluation from earlier uses of the same test cohort.}
+% ------------- comparison discussion -------------
+% Shared: each owner verifies their rows; one editor integrates the text.
+\section{Comparative Results and Discussion}
+\label{sec:comparison}
+
+\subsection{Comparison of modalities and fusion strategies}
+Table~\ref{tab:comparison} compares the published five-fold results with
+our saved development predictions. Our values are the mean and sample
+standard deviation across five folds, each containing 100 patients,
+including 12 with HFrEF. All models use four recording sites. The published
+row is reproduced as reported, rather than obtained by retraining LGC$^{2}$-Net.
+
+For our threshold-dependent metrics, each model uses its own threshold
+chosen to maximize F1 on its pooled development predictions: 0.6120 for ECG,
+0.5687 for PCG, 0.5773 for concatenation, and 0.7016 for attention.
+Balanced accuracy is the mean of sensitivity and specificity; it corresponds
+to the paper's ``average accuracy.'' Overall accuracy is the proportion of
+all patients classified correctly.
+
+% Results source: origin/main, commit d76164b1ada6b81baececf98fc4fbd12f4dd9552.
+% Directory: analysis_outputs/five_fold_cross_validation/.
+% Runs: ecg_seed42, pcg_seed42, fusion_concat_seed42, fusion_attention_seed42.
+% Recomputed from development_oof_predictions.csv, grouped by Fold.
+% Thresholds: development_summary.csv, maximum_development_f1.
+% SD uses ddof=1. AUROC is computed within each fold before averaging.
+% These are the five-fold runs, not the historical fold-0 baseline models.
+
+\begin{table}[htbp]
+\centering
+\caption{Published five-fold results and our development validation results.
+Our entries are mean $\pm$ sample standard deviation across folds.
+All metrics except AUROC are percentages. Protocols differ as described below.}
+\label{tab:comparison}
+\begingroup
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccccc}
+\toprule
+Model & Sensitivity & Specificity & Balanced acc. & Overall acc. & AUROC \\
+\midrule
+LGC$^{2}$-Net~\cite{ma2026hierarchical}
+& $90.00\pm6.97$ & $92.73\pm2.62$ & $91.36\pm4.12$ & $92.40\pm2.70$ & $0.960\pm0.020$ \\
+\midrule
+Our ECG
+& $55.00\pm29.81$ & $92.73\pm8.75$ & $73.86\pm11.21$ & $88.20\pm4.82$ & $0.9121\pm0.0230$ \\
+Our PCG
+& $38.33\pm32.60$ & $91.36\pm9.73$ & $64.85\pm12.60$ & $85.00\pm5.79$ & $0.7767\pm0.0853$ \\
+Our concatenation
+& $63.33\pm20.92$ & $94.55\pm2.94$ & $78.94\pm9.34$ & $90.80\pm1.64$ & $0.9288\pm0.0311$ \\
+Our attention
+& $65.00\pm29.11$ & $92.50\pm2.85$ & $78.75\pm13.24$ & $89.20\pm1.48$ & $0.9100\pm0.0704$ \\
+\bottomrule
+\end{tabular}
+}
+\endgroup
+\end{table}
+
+Concatenation achieved the highest mean fold AUROC among our saved runs:
+0.9288, compared with 0.9121 for ECG. Its specificity was higher than
+the published value, but sensitivity and balanced accuracy were lower.
+This represents a different balance between missed cases and false positives,
+rather than an overall improvement over the published model. The numerical
+AUROC differences have not been established as statistically significant.
+
+The mean fold AUROC should also be distinguished from AUROC calculated
+after pooling all 500 predictions. The pooled AUROCs for ECG, PCG,
+concatenation, and attention were 0.8661, 0.7573, 0.9034, and 0.8357,
+respectively. Pooling compares scores produced by different fold models,
+so differences in score scales can affect the result. For example, mean
+fold average precision was nearly equal for concatenation and attention
+(0.6420 and 0.6429), whereas their pooled average precisions were 0.5735
+and 0.4962. The attention comparison therefore depends on the metric and
+aggregation method.
+
+\subsection{Community-test results}
+Table~\ref{tab:community-comparison} reports community results separately
+from development results. Our five-fold ensembles average probabilities
+across five models and use the same development-derived F1 thresholds
+described above. The historical ECG model is included as a separate
+reference because it uses a different training run and its saved threshold.
+Attention fusion was not included in the saved final community evaluation.
+
+% Our rows: community_test_results.csv under the corresponding seed42 run.
+% Historical ECG: original_saved_cutoff row in ecg_seed42/community_test_results.csv.
+% Literature: Table 3 of Ma et al.; retain published precision.
+\begin{table}[htbp]
+\centering
+\caption{Community-cohort results. Sensitivity, specificity, and balanced
+accuracy are percentages. Published values and our ensemble results use
+different model aggregation procedures.}
+\label{tab:community-comparison}
+\begingroup
+\setlength{\tabcolsep}{4pt}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lcccc}
+\toprule
+Model & Sensitivity & Specificity & Balanced acc. & AUROC \\
+\midrule
+LGC$^{2}$-Net (reported)~\cite{ma2026hierarchical} & 100.00 & 92.52 & 96.26 & 0.990 \\
+\midrule
+Our ECG ensemble & 60.00 & 100.00 & 80.00 & 0.9896 \\
+Our PCG ensemble & 20.00 & 92.17 & 56.09 & 0.6470 \\
+Our concatenation ensemble & 80.00 & 99.13 & 89.57 & 0.9948 \\
+\midrule
+Our historical ECG single model & 100.00 & 96.52 & 98.26 & 0.9983 \\
+\bottomrule
+\end{tabular}
+}
+\endgroup
+\end{table}
+
+Our concatenation ensemble detected four of the five HFrEF patients and
+produced one false positive among 115 non-HFrEF patients. Its average
+precision was 0.9250. The historical ECG model detected all five positive
+patients with four false positives. These outcomes show a sensitivity--
+specificity trade-off, and do not establish that fusion is universally
+better than ECG alone. With only five positive patients, each missed case
+changes sensitivity by 20 percentage points.
+
+\subsection{Limitations}
+Our results are not directly comparable with the published results because
+the testing methods and decision thresholds differ~\cite{lgc2implementation}.
+We also used the validation data to choose models and thresholds, which
+may make development results look better than they would on new patients.
+The community test set had already guided some earlier model choices.
+Finally, we still need to check that the fusion models used the same
+pretrained ECG and PCG models as the baselines in our tables. These results
+therefore suggest that fusion is promising, but do not prove that adding
+PCG alone caused the improvement.
+
+% SUGGESTION (before submission): match each fusion run to its exact pretrained
+% ECG and PCG checkpoints and reconcile the notebook and prediction-file results.
+% ------------- conclusion -------------
+\section{Conclusion}
+\label{sec:conclusion}
+
+\draftnote{Answer the research question using the finalized results.
+Summarize the principal trade-off and one or two concrete next steps.
+Do not introduce new experimental results here.}
+
+
+% ------------- References -------------
+% References are written here directly; no separate bibliography file is needed.
+\begin{thebibliography}{9}
+
+\bibitem{hfrefdataset}
+F. Ma et al.,
+\textit{Multi-Channel ECG and PCG Dataset for Heart Failure with Reduced
+Ejection Fraction (HFrEF) Detection}, Zenodo.
+\url{https://zenodo.org/records/16934966}.
+
+\bibitem{ma2026hierarchical}
+F. Ma et al.,
+``Hierarchical fusion of electrocardiogram and phonocardiogram data
+improves heart failure detection,''
+\textit{Patterns}, vol. 7, no. 3, article 101448, 2026.
+\url{https://doi.org/10.1016/j.patter.2025.101448}.
+
+\bibitem{lgc2implementation}
+F. Ma et al., LGC$^{2}$-Net official implementation,
+five-fold and community evaluation scripts. Accessed September 24, 2026.
+\url{https://github.com/Ezio660914/LGC2_Net_HFrEF}.
+
+\end{thebibliography}
+\end{document}

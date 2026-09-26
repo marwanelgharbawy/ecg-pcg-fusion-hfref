@@ -1,0 +1,26 @@
+{
+    "latex-workshop.latex.recipes": [
+        {
+            "name": "Build report (pdfLaTeX twice)",
+            "tools": ["report-pdflatex", "report-pdflatex"]
+        }
+    ],
+    "latex-workshop.latex.tools": [
+        {
+            "name": "report-pdflatex",
+            "command": "C:/Users/BluRay/AppData/Local/Programs/MiKTeX/miktex/bin/x64/pdflatex.exe",
+            "args": [
+                "-synctex=1",
+                "-interaction=nonstopmode",
+                "-halt-on-error",
+                "-file-line-error",
+                "-output-directory=%OUTDIR%",
+                "%DOC%"
+            ]
+        }
+    ],
+    "latex-workshop.latex.recipe.default": "first",
+    "latex-workshop.latex.outDir": "%DIR%",
+    "latex-workshop.latex.autoBuild.run": "onSave",
+    "latex-workshop.view.pdf.viewer": "tab"
+}
