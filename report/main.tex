@@ -205,17 +205,100 @@ separately in Section~\ref{sec:comparison}.
 % Section~\ref{sec:evaluation} for the partition and threshold rules.}
 
 \subsection{Improvement experiments}
-\draftnote{Summarize the separate-site encoder, fixed/random cropping,
-recording-quality audit, and controlled loss comparison. Use a small table
-with columns for motivation, change, result, and decision. Select the most
-informative findings instead of reproducing every training log.}
+We tested changes to the input representation, recording length, and
+training procedure, and checked factors that might affect the results.
+
+\begin{itemize}
+\item \textbf{Separate-site processing and feature concatenation.}
+Because the four sites were recorded at different times, we tried processing
+each site with the same single-channel encoder, then concatenating the four
+feature vectors before classification. This combines learned features,
+rather than joining the raw recordings into one long signal. It improved
+some development results, but did not outperform the historical model on
+the community test set.
+
+\item \textbf{Five-second segments.}
+We trained a model on six non-overlapping five-second windows per patient,
+filtering and normalizing each window separately. We tested individual
+windows, averaging two or six window scores, and majority voting.
+Averaging all six windows gave a validation AUROC of 0.9252, compared with
+0.9564 for the historical full-recording model. On the community set, it
+detected four of five HFrEF patients with four false positives; the
+historical model detected all five with the same number of false positives.
+
+\item \textbf{Fixed and random 15-second training crops.}
+We compared full recordings with the middle 15 seconds and randomly chosen
+15-second crops, while keeping full recordings for evaluation. Random
+cropping reduced mean average precision from 0.524 to 0.476. The fixed
+crop reached 0.553, but sensitivity fell from 66.7\% to 45.0\%.
+Neither crop replaced the full input. These are exploratory results from
+before the training-check correction described below.
+
+\item \textbf{Heart-rate, recording-quality, and probability checks.}
+Simple models using heart rate, recording quality, or both reached mean
+average precisions of 0.206, 0.383, and 0.404, respectively. We also checked
+whether predicted probabilities matched observed outcomes and compared
+performance across signal-quality groups. Recording conditions may carry
+information about the label, but these checks do not prove that the ECG
+model relies on noise. No clear quality group explained the separate-site
+model's improvement.
+
+\item \textbf{Repeated architecture and threshold comparisons.}
+We compared the four-channel and separate-site models over five scoring
+folds with seeds 42 and 2026, using separate patients for training, tuning,
+and scoring. We repeated training after fixing a preliminary model check
+that had changed BatchNorm statistics and the random sequence. Alongside
+the best-F1 threshold, we tested thresholds targeting at least 90\%
+specificity on tuning patients. Under this second rule, separate-site
+processing improved mean scoring sensitivity with both seeds, although
+the size of the gain remained uncertain.
+
+\item \textbf{Five-fold baseline evaluation and loss comparison.}
+A later experiment trained the baseline architecture on four folds and
+validated on the remaining fold, then averaged the five models' community
+predictions. Its fold-0 result was lower than the historical result.
+A controlled rerun traced this difference to two mathematically equivalent
+focal-loss implementations with different numerical operations. The original
+implementation exactly reproduced the historical model, including its
+validation AUROC of 0.9564; the shared implementation reproduced the newer
+fold-0 AUROC of 0.9110. This explains that run's difference, but does not
+show that one implementation is always better.
+\end{itemize}
+
+Earlier single-channel trials also tested segmentation, weighted binary
+cross-entropy, and focal loss. Their split could place recordings from the
+same patient in both training and validation, so their scores are excluded
+from the final comparison. Synthetic noise and additional class balancing
+were considered but deferred, rather than completed experiments.
+
+% Sources: analysis_outputs/ecg_experiments/README.md and accompanying CSVs.
+% Five-second study: ea0014a:notebooks/3_ecg_5second_segments.ipynb.
+% Later loss study: origin/main at d76164b, analysis_outputs/ecg_loss_comparison/seed42/.
+% \draftnote{Summarize the separate-site encoder, fixed/random cropping,
+% recording-quality audit, and controlled loss comparison. Use a small table
+% with columns for motivation, change, result, and decision. Select the most
+% informative findings instead of reproducing every training log.}
 
 \subsection{Results and interpretation}
-\draftnote{Insert verified ECG results with the exact run, split, and metric
-aggregation identified. Explain the difference between the historical
-single model and five-fold models. State what the experiments support and
-what remains uncertain; leave cross-modality conclusions to
-Section~\ref{sec:comparison}.}
+We retained the historical fold-0 four-channel ECG model as the project
+baseline. On its 100 validation patients, it achieved an AUROC of 0.9564
+and average precision of 0.7686. These are single-fold results, distinct
+from the five-fold averages in Section~\ref{sec:comparison}.
+
+In the community comparison using thresholds chosen to target at least
+90\% tuning specificity, both the historical and selected separate-site
+models detected all five HFrEF patients. However, the historical model
+produced four false positives, compared with 14 for the separate-site
+model, and had a higher AUROC (0.9983 versus 0.9913). The development gains
+therefore did not lead to a better community result. This supported keeping
+the historical baseline, while recognizing that the test set contains
+only five positive patients.
+
+% \draftnote{Insert verified ECG results with the exact run, split, and metric
+% aggregation identified. Explain the difference between the historical
+% single model and five-fold models. State what the experiments support and
+% what remains uncertain; leave cross-modality conclusions to
+% Section~\ref{sec:comparison}.}
 
 % Example after a figure is available under report/figures/:
 % \begin{figure}[htbp]
