@@ -137,24 +137,81 @@ this shared preprocessing.
 \label{sec:evaluation}
 
 \subsection{Data partitions and model selection}
-\draftnote{Describe each reported protocol precisely. Distinguish the
-historical fold-0 baselines, the four-training-fold/one-validation-fold
-experiments, and the ECG experiments with separate training, tuning, and
-scoring folds. Explain which patients select epochs and thresholds. Do not
-describe validation predictions used for checkpoint selection as fully
-independent scoring predictions.}
+The 500-patient development cohort is divided into five predefined
+patient-level folds, each containing 100 patients, including 12 with HFrEF
+(Table~\ref{tab:cohorts}). The main ECG, PCG, and fusion comparison uses
+five-fold out-of-fold (OOF) evaluation: in each run, four folds (400 patients)
+are used for training and the remaining fold (100 patients) is held out for
+validation. The procedure is rotated across all five folds so that every
+development patient receives exactly one prediction from a model that was not
+trained on that patient. All four recording sites from one patient remain in
+the same partition, preventing site-level leakage across training and
+validation~\cite{hfrefdataset}.
+
+This five-fold protocol is distinct from the historical ECG fold-0 baseline
+described in Section~\ref{sec:ecg}, which uses fold 0 as its single validation
+set, and from exploratory ECG experiments that use separate training, tuning,
+and scoring folds. Those results are reported with their own protocols rather
+than being treated as equivalent estimates.
+
+For the five-fold comparison, model checkpoints are selected using validation
+AUROC within each fold. Decision thresholds are selected from the pooled
+development OOF predictions after all five folds have been completed. Two
+operating rules are saved: the threshold that maximizes development F1 and a
+threshold targeting at least 90\% development specificity. For the final
+community evaluation, thresholds are transferred from development without
+retuning on community labels. The selected fusion architecture is also chosen
+from development OOF results before its final community evaluation.
 
 \subsection{Training and reproducibility}
-\draftnote{Provide a settings table with optimizer, learning rate, loss,
-batch size, regularization, stopping rule, and seeds. State model-specific
-differences. Identify the code revision and environment for the reported
-runs; do not assume that all experiments used identical loss operations.}
+
+The primary five-fold ECG and PCG runs use seed 42, batch size 16, an initial
+learning rate of $10^{-3}$, at most 50 epochs, and early stopping with patience
+10. Fold-specific seeds are derived deterministically from the base seed and
+fold index. Training uses focal loss with $\gamma=2$, with the positive-class
+weight set from the class distribution in the corresponding training fold;
+focal loss is used to reduce the contribution of well-classified examples in
+an imbalanced setting~\cite{lin2017focal}. Optimization uses AdamW
+\cite{loshchilov2019adamw} with weight decay $10^{-4}$ for ECG and
+$10^{-3}$ for PCG. A ReduceLROnPlateau scheduler halves the learning rate after
+three epochs without improvement in validation AUROC, and gradients are clipped
+to a maximum norm of 1.
+
+The ECG five-fold runs use the complete 30-second input during both training
+and validation. The PCG five-fold runs use random 15-second crops during
+training while retaining the complete 30-second recording for validation. The
+fusion runs use the same batch size, learning rate, maximum epoch count, and
+early-stopping patience. Their pretrained ECG and PCG encoders are frozen by
+default, while the fusion-specific layers are optimized with focal loss and
+AdamW. Each run saves its fold assignment, random seed, model configuration,
+best epoch, validation AUROC, and timing information. The comparison in
+Section~\ref{sec:comparison} refers to the saved seed-42 five-fold outputs from
+repository revision \texttt{d76164b}.
 
 \subsection{Evaluation measures}
-\draftnote{Define AUROC, sensitivity, specificity, precision, and F1.
-Explain that the reported AUPRC uses average precision. Specify whether
-development metrics are pooled across patients or averaged across folds.
-Describe the development-derived decision thresholds and test ensembling.}
+
+Discrimination is summarized with the area under the receiver operating
+characteristic curve (AUROC), which evaluates ranking across all possible
+decision thresholds~\cite{fawcett2006roc}. Because HFrEF is the minority class
+in both cohorts, we also report precision--recall performance. In the saved
+analysis files, the quantity labelled AUPRC is computed using average precision
+(AP), i.e., the weighted summary of precision as recall increases. Precision--
+recall measures are particularly informative for imbalanced binary
+classification~\cite{saito2015pr}.
+
+At a fixed threshold, sensitivity (recall) is
+$TP/(TP+FN)$, specificity is $TN/(TN+FP)$, precision is $TP/(TP+FP)$, and
+F1 is the harmonic mean of precision and recall. Balanced accuracy is the
+average of sensitivity and specificity. Threshold-independent AUROC and AP do
+not change when the operating threshold changes.
+
+Development results are reported in two complementary ways. Fold-wise values
+summarize performance separately within each held-out fold and may be averaged
+across folds, while pooled OOF values are calculated once after combining the
+500 patient-level OOF predictions. These quantities need not be numerically
+identical because each fold is produced by a separately trained model. For
+community testing, each five-fold ensemble first averages the five model
+probabilities for a patient and then applies the development-derived threshold.
 % ------------- ecg -------------
 % Owner: Author One (ECG). Shared dataset/protocol details live elsewhere.
 \section{ECG Model and Experiments}
@@ -313,61 +370,199 @@ only five positive patients.
 \label{sec:pcg}
 
 \subsection{Baseline architecture}
-\draftnote{Describe the PCG encoder, its input shape, temporal downsampling,
-residual blocks, embedding, and classifier. Explain how it accommodates
-the higher sampling rate. Refer to Section~\ref{sec:data} for preprocessing.}
+The PCG encoder is a 1D residual CNN operating on the four-channel auscultation
+signal (APEX, LLSB, LUSB, RUSB), each 30 seconds long. Because PCG is sampled
+at 4{,}000~Hz against ECG's 500~Hz, the same 30-second recording is $8\times$
+longer in raw samples (120{,}000 vs.\ 15{,}000), so the input tensor is
+$(4, 120000)$ per patient, following the bandpass filtering and per-channel
+Z-score normalization described in Section~\ref{sec:data}.
+
+To keep the PCG and ECG branches architecturally compatible for later fusion,
+the PCG stem downsamples far more aggressively than the ECG stem: a stride-4
+convolution followed by a stride-4 max pool (a total of $/16$), compared to
+$/4$ for ECG. This is a deliberate design choice --- after four residual
+blocks with channel widths $32{\to}64{\to}128{\to}128$ (each block: two
+kernel-7 convolutions, a skip connection, and 0.1 dropout between
+convolutions), the resulting sequence length is approximately 469, matching
+the ECG encoder's output length exactly. This alignment is what lets the two
+encoders' pooled features be concatenated (or attended over) in the fusion
+stage without a length-adaptation layer.
+
+The classifier head combines global average- and max-pooled features (256-d)
+into a 128-dimension embedding via a fully connected layer, ReLU, and
+dropout, followed by a single linear output passed through a sigmoid for the
+HFrEF probability.
 
 \subsection{Training and improvement experiments}
-\draftnote{Describe the baseline training crop and regularization. Present
-the experiment with a smaller model and augmentation separately, identifying all
-changes made together. Avoid attributing an outcome to one augmentation
-when several settings changed in the same run.}
+\textbf{Baseline training crop and regularization.} The first training run
+overfit clearly: training loss fell to near 0.0009 while validation loss rose
+steadily from $\sim$0.07 to $\sim$0.24, and validation AUROC oscillated
+between 0.5 and 0.65 with no upward trend. Two changes were tried in
+sequence. First, increased regularization --- dropout raised from 0.3 to 0.5
+and weight decay from $10^{-4}$ to $10^{-3}$ --- gave a negligible
+improvement (best AUROC 0.6307 vs.\ 0.6402), showing the problem was not
+simply under-regularized weights. Second, random-crop augmentation: instead
+of training on the fixed 30-second recording every epoch, each training
+batch uses a random 15-second crop with a new start position each time it is
+sampled; validation and test still use the full 30-second recording. Because
+the encoder uses adaptive pooling, no architecture change was required. This
+was the fix that worked: training and validation loss converged together
+around $\sim$0.035, and validation AUROC became a stable upward trend from
+0.52 to 0.67 across epochs. With only $\sim$500 development patients
+($\sim$65 HFrEF-positive), the crop augmentation is understood to prevent the
+model from memorizing patient-specific noise in a fixed recording.
+
+\textbf{Smaller model with augmentation, tested separately.} A further
+experiment swapped in a smaller encoder (all channel widths halved relative
+to the baseline) and combined several changes together: same-class mixup,
+mild Gaussian noise, amplitude scaling, the full 30-second recording (no
+crop), stronger weight decay, and 0.5 dropout. Because model size,
+augmentation type, and crop policy all changed in the same run, the results
+cannot isolate which change is responsible for the outcome --- a limitation
+of the experiment design made explicit here. The result underperformed the
+baseline on every metric (Section~\ref{sec:pcg-results}), so the smaller
+encoder was kept only as the default for this one experiment, not adopted as
+a replacement baseline.
 
 \subsection{Results and interpretation}
-\draftnote{Report verified baseline and selected experiment results. Identify
-whether numbers come from replayed predictions or historical notebook
-outputs. Discuss discrimination, missed positive patients, false positives,
-and the limits of the small positive class.}
+\label{sec:pcg-results}
+\textbf{Verification status of the numbers.} The original baseline checkpoint
+is not present in the project repository --- large model files are excluded
+from version control --- so its reported test metrics (AUROC 0.8748, AUPRC
+0.1623, recall 1.0, precision 0.104) are \emph{historical notebook outputs},
+carried forward as a fixed reference rather than reproduced by re-running a
+saved model. By contrast, the five-fold cross-validation results below
+\emph{are} replayed predictions from checkpoints that do exist, reported at
+full precision from the saved result tables.
+
+\textbf{Development (five-fold cross-validation).} Across all five folds (400
+train / 100 validation patients each, 12 HFrEF-positive per validation fold),
+per-fold validation AUROC ranged from 0.686 to 0.884. Pooled out-of-fold
+predictions over all 500 development patients gave AUROC 0.757 and AUPRC
+0.325 --- a more stable estimate than any single split, since every patient
+is scored by a model that never trained on them.
+
+\textbf{Community test set.} The five-model ensemble scored AUROC 0.647 /
+AUPRC 0.269 on the 120-patient community test set (5 HFrEF-positive), while
+the original single model reportedly reached AUROC 0.875 / AUPRC 0.162. The
+two results trade off differently: the original model caught all 5 HFrEF
+patients but produced 43 false positives among 115 negatives (specificity
+0.626); the five-fold ensemble caught only 1--2 of 5 HFrEF patients but with
+far fewer false alarms (9--12), i.e., higher specificity (0.90--0.92) at the
+cost of recall. Given this trade-off and the unresolved checkpoint-
+verification gap, the original model was kept as the standalone PCG
+baseline, while the five-fold run was preserved as a reference experiment.
+
+\textbf{Discrimination and the small positive class.} PCG alone is a
+substantially weaker predictor of HFrEF than ECG alone (development AUROC
+0.757 for PCG vs.\ 0.9564 reported for the ECG baseline). All PCG results are
+also affected by the small number of positive cases: only 12 HFrEF patients
+per 100-patient validation fold and just 5 in the full 120-patient community
+test set. At this scale, a single changed prediction shifts test recall by
+20 percentage points, so point estimates of recall, precision, and balanced
+accuracy on the test set should be read as high-variance rather than
+precise measurements; F1 is treated as the more informative single number
+for this reason. The augmentation experiment reinforces the same pattern: it
+further reduced false positives (20 vs.\ 43 on the community test) but at a
+steeper recall cost (1 of 5 HFrEF patients found, AUROC 0.68, AUPRC 0.08),
+and --- because several training changes were bundled together --- cannot be
+used to attribute the degradation to any one factor.
 % ------------- fusion -------------
 % Owner: Author Three (fusion).
 \section{Multimodal Fusion}
 \label{sec:fusion}
 
 \subsection{Concatenation fusion}
-\draftnote{Explain how the ECG and PCG embeddings are concatenated and
-classified. Identify the exact pretrained encoder runs and folds, whether
-encoders are frozen, and which parameters are trained. Refer to
-Sections~\ref{sec:ecg} and~\ref{sec:pcg} instead of repeating the encoders.}
+
+For each held-out fold, the fusion model loads the corresponding pretrained
+ECG and PCG encoders from the five-fold seed-42 runs. The encoder associated
+with a given fold was trained without that fold, so the same held-out patients
+remain reserved for validation during fusion training. The ECG and PCG
+architectures are described in Sections~\ref{sec:ecg} and~\ref{sec:pcg}.
+
+Each encoder produces a 128-dimensional patient embedding. In the
+concatenation model, these two embeddings are placed side by side to form a
+256-dimensional feature vector. This is feature-level fusion: the raw ECG and
+PCG signals are not added, averaged, or directly mixed. The combined vector is
+passed through a small multilayer perceptron consisting of a linear layer from
+256 to 128 units, ReLU activation, dropout with probability 0.3, and a final
+linear layer that produces one classification logit.
+
+The pretrained ECG and PCG encoders are frozen during this experiment and are
+kept in evaluation mode. Therefore, only the fusion classifier is optimized.
+Although concatenation does not explicitly model cross-modal attention, the
+classifier can still learn weighted combinations of ECG and PCG features after
+the two representations have been joined.
 
 \subsection{Attention fusion}
-\draftnote{Describe modality projections, the two modality tokens,
-multi-head attention, residual connections, and classifier. Explain that
-this operates on patient embeddings, rather than making a claim about
-explicit beat-level temporal alignment.}
+The attention model starts from the same fold-specific pretrained ECG and PCG
+encoders and keeps them frozen. Their 128-dimensional embeddings are projected
+separately into a common 128-dimensional attention space. The projected ECG
+embedding is treated as one modality token and the projected PCG embedding as
+a second modality token.
+
+The two tokens are processed by multi-head self-attention with four heads.
+This allows the ECG token to attend to both ECG and PCG information, and
+likewise allows the PCG token to attend to both modalities. The attention
+output is combined with the original tokens through a residual connection and
+layer normalization. A feed-forward block is then applied, followed by a
+second residual connection and layer normalization.
+
+The two updated 128-dimensional tokens are flattened to a 256-dimensional
+vector and passed to the final multilayer perceptron classifier. This mechanism
+models interaction between whole-patient ECG and PCG embeddings. It should not
+be interpreted as explicit beat-level or sample-level temporal alignment
+between the two raw signals.
 
 \subsection{Development selection and community evaluation}
-\draftnote{State the development comparison used to select the fusion
-approach. Describe averaging five fold-model probabilities and applying
-development-selected thresholds to the community cohort. Distinguish the
-selected model's evaluation from earlier uses of the same test cohort.}
+Both fusion architectures were evaluated with the same five-fold
+out-of-fold development protocol. In each fold, the fusion head was trained on
+four development folds and validated on the remaining fold, using the
+corresponding pretrained ECG and PCG encoders. The five validation partitions
+were then combined so that every development patient received an out-of-fold
+prediction from a model that had not trained on that patient.
+
+On pooled development predictions, concatenation achieved an AUROC of 0.9034
+and average precision of 0.5735, compared with 0.8357 and 0.4962 for the
+attention model. Based on this development comparison, concatenation was
+selected as the final fusion architecture. Its maximum-development-F1
+threshold was 0.5773.
+
+For the community cohort, each of the five concatenation fold models produced
+a probability for every patient. The five probabilities were averaged to form
+the ensemble prediction, and the development-selected threshold was applied
+without retuning on the community data. This ensemble achieved an AUROC of
+0.9948 and average precision of 0.9250. At the 0.5773 threshold it detected
+four of five HFrEF patients, with one false negative, one false positive, and
+114 true negatives. Attention fusion was not used for the final community
+evaluation because the fusion architecture had already been selected from the
+development out-of-fold results.
+
 % ------------- comparison discussion -------------
 % Shared: each owner verifies their rows; one editor integrates the text.
 \section{Comparative Results and Discussion}
 \label{sec:comparison}
 
 \subsection{Comparison of modalities and fusion strategies}
-Table~\ref{tab:comparison} compares the published five-fold results with
-our saved development predictions. Our values are the mean and sample
-standard deviation across five folds, each containing 100 patients,
-including 12 with HFrEF. All models use four recording sites. The published
-row is reproduced as reported, rather than obtained by retraining LGC$^{2}$-Net.
 
-For our threshold-dependent metrics, each model uses its own threshold
-chosen to maximize F1 on its pooled development predictions: 0.6120 for ECG,
-0.5687 for PCG, 0.5773 for concatenation, and 0.7016 for attention.
-Balanced accuracy is the mean of sensitivity and specificity; it corresponds
-to the paper's ``average accuracy.'' Overall accuracy is the proportion of
-all patients classified correctly.
+Table~\ref{tab:comparison} compares the published five-fold results from
+Ma et al.~\cite{ma2026hierarchical} with our saved seed-42 development
+predictions. Our entries are the mean and sample standard deviation across the
+five held-out folds, each containing 100 patients, including 12 with HFrEF.
+The published row is reproduced as reported rather than obtained by retraining
+LGC$^{2}$-Net; implementation details for the published protocol are also
+available in the authors' official repository~\cite{lgc2implementation}.
+Accordingly, the two sets of results should be treated as contextual rather
+than as a controlled head-to-head replication.
+
+For threshold-dependent development metrics, each of our models uses a
+threshold selected from the pooled OOF predictions by maximizing development
+F1. Those thresholds are then applied to the individual held-out folds when the
+fold-wise sensitivity, specificity, balanced accuracy, and overall accuracy are
+summarized. Because the same pooled OOF predictions are used to choose these
+development operating points, the threshold-dependent development values are
+descriptive model-selection results rather than estimates from an untouched
+test cohort.
 
 % Results source: origin/main, commit d76164b1ada6b81baececf98fc4fbd12f4dd9552.
 % Directory: analysis_outputs/five_fold_cross_validation/.
@@ -381,7 +576,8 @@ all patients classified correctly.
 \centering
 \caption{Published five-fold results and our development validation results.
 Our entries are mean $\pm$ sample standard deviation across folds.
-All metrics except AUROC are percentages. Protocols differ as described below.}
+All metrics except AUROC are percentages. Protocols differ as described in the
+text.}
 \label{tab:comparison}
 \begingroup
 \setlength{\tabcolsep}{4pt}
@@ -407,34 +603,33 @@ Our attention
 \endgroup
 \end{table}
 
-Concatenation achieved the highest mean fold AUROC among our saved runs:
-0.9288, compared with 0.9121 for ECG. Its specificity was higher than
-the published value, but sensitivity and balanced accuracy were lower.
-This represents a different balance between missed cases and false positives,
-rather than an overall improvement over the published model. The numerical
-AUROC differences have not been established as statistically significant.
+Concatenation achieved the highest mean fold AUROC among our saved runs
+(0.9288), followed by ECG (0.9121) and attention (0.9100). Attention showed a
+slightly higher mean sensitivity than concatenation but lower specificity and
+a larger fold-to-fold AUROC standard deviation. These differences describe the
+observed runs; no statistical test in this project establishes that the AUROC
+differences between our models are significant.
 
-The mean fold AUROC should also be distinguished from AUROC calculated
-after pooling all 500 predictions. The pooled AUROCs for ECG, PCG,
-concatenation, and attention were 0.8661, 0.7573, 0.9034, and 0.8357,
-respectively. Pooling compares scores produced by different fold models,
-so differences in score scales can affect the result. For example, mean
-fold average precision was nearly equal for concatenation and attention
-(0.6420 and 0.6429), whereas their pooled average precisions were 0.5735
-and 0.4962. The attention comparison therefore depends on the metric and
-aggregation method.
+Mean fold metrics should be distinguished from metrics calculated after pooling
+all 500 OOF predictions. In the pooled fusion comparison, concatenation
+achieved AUROC 0.9034 and average precision 0.5735, while attention achieved
+0.8357 and 0.4962. Mean fold average precision for concatenation and attention
+was much closer (0.6420 and 0.6429). This difference is plausible because each
+held-out fold is produced by a separately trained model whose probability scale
+can differ from the others; pooled OOF metrics therefore answer a different
+aggregation question than the mean of fold-wise metrics. AUROC and
+precision--recall measures should also be interpreted together in this
+imbalanced setting~\cite{fawcett2006roc,saito2015pr}.
 
 \subsection{Community-test results}
-Table~\ref{tab:community-comparison} reports community results separately
-from development results. Our five-fold ensembles average probabilities
-across five models and use the same development-derived F1 thresholds
-described above. The historical ECG model is included as a separate
-reference because it uses a different training run and its saved threshold.
-Attention fusion was not included in the saved final community evaluation.
 
-% Our rows: community_test_results.csv under the corresponding seed42 run.
-% Historical ECG: original_saved_cutoff row in ecg_seed42/community_test_results.csv.
-% Literature: Table 3 of Ma et al.; retain published precision.
+Table~\ref{tab:community-comparison} reports community results separately from
+development results. For our five-fold ensembles, each fold model predicts all
+120 community patients, the five probabilities for each patient are averaged,
+and the development-derived operating threshold is then applied. This mirrors
+the saved ensemble procedure rather than the published LGC$^{2}$-Net
+aggregation protocol~\cite{lgc2implementation}.
+
 \begin{table}[htbp]
 \centering
 \caption{Community-cohort results. Sensitivity, specificity, and balanced
@@ -461,24 +656,48 @@ Our historical ECG single model & 100.00 & 96.52 & 98.26 & 0.9983 \\
 \endgroup
 \end{table}
 
-Our concatenation ensemble detected four of the five HFrEF patients and
-produced one false positive among 115 non-HFrEF patients. Its average
-precision was 0.9250. The historical ECG model detected all five positive
-patients with four false positives. These outcomes show a sensitivity--
-specificity trade-off, and do not establish that fusion is universally
-better than ECG alone. With only five positive patients, each missed case
-changes sensitivity by 20 percentage points.
+The concatenation ensemble detected four of the five HFrEF patients and
+produced one false positive among 115 non-HFrEF patients. Its average precision
+was 0.9250. The historical ECG single model detected all five positive patients
+but produced four false positives. These observations show a sensitivity--
+specificity trade-off rather than proving that fusion is universally superior
+to ECG alone. The community cohort contains only five HFrEF cases, so one
+additional missed or detected case changes sensitivity by 20 percentage
+points. The small positive class also makes precision--recall estimates
+particularly sensitive to the ranking of individual positive
+patients~\cite{saito2015pr}.
+
+Attention fusion was not included in the final community evaluation because
+concatenation had already been selected from development OOF results. Running
+multiple alternative fusion architectures on the community cohort and then
+selecting the best one would use the community labels for model selection,
+weakening its role as a final evaluation set.
 
 \subsection{Limitations}
-Our results are not directly comparable with the published results because
-the testing methods and decision thresholds differ~\cite{lgc2implementation}.
-We also used the validation data to choose models and thresholds, which
-may make development results look better than they would on new patients.
-The community test set had already guided some earlier model choices.
-Finally, we still need to check that the fusion models used the same
-pretrained ECG and PCG models as the baselines in our tables. These results
-therefore suggest that fusion is promising, but do not prove that adding
-PCG alone caused the improvement.
+
+Several limitations constrain the interpretation of the results. First, our
+results are not directly comparable with the published LGC$^{2}$-Net values
+because the architectures, training procedures, threshold rules, and model
+aggregation procedures differ~\cite{ma2026hierarchical,lgc2implementation}.
+Second, development thresholds are selected from pooled OOF predictions, so
+threshold-dependent development metrics are part of model selection rather
+than independent test estimates. Third, the community cohort contains only
+five HFrEF patients, creating substantial uncertainty in sensitivity,
+precision, and related metrics. Fourth, the same community cohort had already
+been inspected during earlier ECG experiments, so the final community
+evaluation should not be described as a completely untouched external
+validation.
+
+The fusion implementation does preserve patient-level fold alignment: each
+fusion fold reuses the ECG and PCG checkpoints from the corresponding
+five-fold baseline run, and those encoders were trained on the same four
+training folds while the remaining fold stayed held out. The encoders are also
+frozen during the reported fusion training. This reduces leakage within the
+development comparison, but it does not remove the broader limitations above.
+The results therefore support concatenation as the strongest fusion approach
+among the architectures tested in this project, while larger and genuinely
+unseen external cohorts would be required before making stronger claims about
+generalization or clinical utility.
 
 % SUGGESTION (before submission): match each fusion run to its exact pretrained
 % ECG and PCG checkpoints and reconcile the notebook and prediction-file results.
@@ -486,9 +705,32 @@ PCG alone caused the improvement.
 \section{Conclusion}
 \label{sec:conclusion}
 
-\draftnote{Answer the research question using the finalized results.
-Summarize the principal trade-off and one or two concrete next steps.
-Do not introduce new experimental results here.}
+This project investigated whether combining ECG and PCG could improve HFrEF
+detection compared with using either modality alone. Across the development
+cohort, ECG was the stronger unimodal signal, while simple ECG--PCG feature
+concatenation provided the strongest fusion result. On pooled out-of-fold
+predictions, concatenation achieved an AUROC of 0.9034 and average precision of
+0.5735, compared with 0.8661 and the corresponding lower precision--recall
+performance for ECG alone. The attention-based model did not improve on simple
+concatenation, indicating that additional fusion complexity was not beneficial
+for this dataset and training setup.
+
+The selected concatenation ensemble also performed strongly on the community
+cohort, detecting four of the five HFrEF patients with one false positive.
+However, the very small number of positive community cases, together with the
+fact that this cohort had been inspected during earlier experiments, limits how
+strongly these results can be generalized. The findings therefore support ECG
+and PCG as potentially complementary modalities, but they do not establish that
+fusion is universally superior to a strong ECG model.
+
+Future work should evaluate the selected fusion approach on a larger,
+genuinely unseen external cohort and examine whether more targeted multimodal
+strategies, such as limited encoder fine-tuning or finer-grained temporal
+interaction, can improve attention-based fusion without unnecessary model
+complexity. Explainability and efficiency analyses would also help clarify how
+each modality contributes to the final prediction and whether the approach is
+practical for deployment.
+
 
 
 % ------------- References -------------
@@ -512,6 +754,38 @@ improves heart failure detection,''
 F. Ma et al., LGC$^{2}$-Net official implementation,
 five-fold and community evaluation scripts. Accessed September 24, 2026.
 \url{https://github.com/Ezio660914/LGC2_Net_HFrEF}.
+
+\bibitem{lin2017focal}
+T.-Y. Lin, P. Goyal, R. Girshick, K. He, and P. Dollár,
+``Focal Loss for Dense Object Detection,''
+in \textit{Proceedings of the IEEE International Conference on Computer Vision (ICCV)},
+pp. 2980--2988, 2017.
+\url{https://doi.org/10.1109/ICCV.2017.324}.
+
+\bibitem{loshchilov2019adamw}
+I. Loshchilov and F. Hutter,
+``Decoupled Weight Decay Regularization,''
+in \textit{7th International Conference on Learning Representations (ICLR)}, 2019.
+\url{https://openreview.net/forum?id=Bkg6RiCqY7}.
+
+\bibitem{fawcett2006roc}
+T. Fawcett,
+``An Introduction to ROC Analysis,''
+\textit{Pattern Recognition Letters}, vol. 27, no. 8, pp. 861--874, 2006.
+\url{https://doi.org/10.1016/j.patrec.2005.10.010}.
+
+\bibitem{saito2015pr}
+T. Saito and M. Rehmsmeier,
+``The Precision--Recall Plot Is More Informative than the ROC Plot When Evaluating Binary Classifiers on Imbalanced Datasets,''
+\textit{PLOS ONE}, vol. 10, no. 3, e0118432, 2015.
+\url{https://doi.org/10.1371/journal.pone.0118432}.
+
+\bibitem{vaswani2017attention}
+A. Vaswani et al.,
+``Attention Is All You Need,''
+in \textit{Advances in Neural Information Processing Systems 30}, 2017.
+\url{https://arxiv.org/abs/1706.03762}.
+
 
 \end{thebibliography}
 \end{document}
